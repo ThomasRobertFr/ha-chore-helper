@@ -28,7 +28,7 @@ class WeeklyChore(Chore):
         self._first_week = config.get(const.CONF_FIRST_WEEK, 1)
 
     def _add_period_offset(self, start_date: date) -> date:
-        return start_date + relativedelta(weeks=self._period)
+        return start_date + relativedelta(weeks=self._period, days=-3)
 
     def _find_candidate_date(self, day1: date) -> date | None:
         """Calculate possible date, for weekly frequency."""
