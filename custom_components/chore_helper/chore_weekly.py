@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 from dateutil.relativedelta import relativedelta
 from homeassistant.config_entries import ConfigEntry
@@ -30,6 +30,59 @@ class WeeklyChore(Chore):
 
     def _add_period_offset(self, start_date: date) -> date:
         return start_date + relativedelta(weeks=self._period, days=-3)
+
+    def _calculate_schedule_start_date(self) -> date:
+        """Calculate start date for scheduling offsets."""
+        # Smatter version of the next scheduled date, rounding to closest
+        # `chore_day` that puts us at around `period` weeks of last completion
+
+        after = self._frequency[:6] == "after-"
+        start_date = self._start_date
+
+        if after and self.last_completed is not None:
+            # Last complete + 7 * period days
+            last_complete = self.last_completed.date()
+
+            # If we did it late in the week (eg sunday instead of saturday)
+            chore_weekday = WEEKDAYS.index(self._chore_day)
+
+            # Find the shortest way to get back on scheduled day:
+            #
+            # If we did it late by 3 days max (eg sunday instead of saturday)
+            # cancel the delay and get back to normal schedule
+            #      ex          6         - 5 = 1 -> -1
+            if 0 < last_complete.weekday() - chore_weekday <= 3:
+                delta = - (last_complete.weekday() - chore_weekday)
+            # If we did it late by 3 days max the week after (eg monday instead of saturday)
+            # cancel the delay and get back to normal schedule
+            #      ex          0           + 7 - 5 = 7 - 5 = 2 -> -2
+            elif 0 < last_complete.weekday() + 7 - chore_weekday <= 3:
+                delta = - (last_complete.weekday() + 7 - chore_weekday)
+            # If we did it early by 3 days max (eg monday instead of tuesday)
+            # cancel the delay and get back to normal schedule
+            #                   0            -   1 = -1 -> +1
+            elif -3 <= last_complete.weekday() - chore_weekday < 0:
+                delta = - (last_complete.weekday() - chore_weekday)
+            # If we did it early by 3 days max the week before (eg sunday instead of tuesday)
+            # cancel the delay and get back to normal schedule
+            #                   6 - 7          -   1 = -2 -> +2
+            elif -3 <= last_complete.weekday() - 7 - chore_weekday < 0:
+                delta = - (last_complete.weekday() - 7 - chore_weekday)
+            # Otherwise we did it the proper day :D
+            else:
+                delta = 0
+
+            # Shift last_complete so that adding the period offset puts us on
+            # the closest date in 7 * period days falling on the right weekday
+            last_complete = last_complete - timedelta(days=delta)
+
+            earliest_date = self._add_period_offset(last_complete)
+
+            if earliest_date > start_date:
+                start_date = earliest_date
+
+        return start_date
+
 
     def _find_candidate_date(self, day1: date) -> date | None:
         """Calculate possible date, for weekly frequency."""
