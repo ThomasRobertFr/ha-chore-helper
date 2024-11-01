@@ -3,6 +3,7 @@
 For more details about this integration, please refer to
 https://github.com/bmcclure/ha-chore-helper
 """
+
 from __future__ import annotations
 
 from datetime import timedelta
@@ -21,6 +22,8 @@ import voluptuous as vol
 
 from . import const, helpers
 from .const import LOGGER
+
+PLATFORMS: list[str] = [const.SENSOR_PLATFORM]
 
 MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=30)
 
@@ -230,12 +233,9 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         config_entry.options[const.CONF_FREQUENCY],
     )
     config_entry.add_update_listener(update_listener)
+
     # Add sensor
-    hass.async_create_task(
-        hass.config_entries.async_forward_entry_setup(
-            config_entry, const.SENSOR_PLATFORM
-        )
-    )
+    await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
     return True
 
 
